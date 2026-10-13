@@ -1,5 +1,7 @@
 # ── Build output ──────────────────────────────────────────────────────────────
 backend/target/
+backend/data/
+data/
 *.class
 *.jar
 *.war
