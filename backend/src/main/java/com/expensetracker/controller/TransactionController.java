@@ -2,10 +2,15 @@ package com.expensetracker.controller;
 
 import com.expensetracker.dto.Dto;
 import com.expensetracker.model.Transaction;
+import com.expensetracker.model.TransactionType;
+import com.expensetracker.model.User;
 import com.expensetracker.service.*;
 import jakarta.validation.Valid;
+import java.time.LocalDate;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,8 +26,45 @@ public class TransactionController {
     }
 
     @GetMapping
-    List<Dto.TransactionResponse> list(Authentication auth) {
-        return service.list(users.byEmail(auth.getName())).stream().map(Dto.TransactionResponse::of).toList();
+    Object list(@RequestParam(required = false) String category,
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+                @RequestParam(required = false) String type,
+                @RequestParam(defaultValue = "0") int page,
+                @RequestParam(defaultValue = "50") int size,
+                Authentication auth) {
+        User u = users.byEmail(auth.getName());
+        TransactionType txType = null;
+        if (type != null && !type.isBlank()) {
+            try { txType = TransactionType.valueOf(type.toUpperCase()); }
+            catch (IllegalArgumentException ignored) {}
+        }
+        // If no filters and no pagination beyond defaults, return plain list for backward compat
+        boolean hasFilter = category != null || from != null || to != null || txType != null || page > 0 || size != 50;
+        if (!hasFilter) {
+            return service.list(u).stream().map(Dto.TransactionResponse::of).toList();
+        }
+        return service.listFiltered(u, category, from, to, txType, page, size);
+    }
+
+    @GetMapping("/summary")
+    List<Dto.MonthlySummary> summary(
+            @RequestParam(defaultValue = "#{T(java.time.LocalDate).now().getYear()}") int year,
+            Authentication auth) {
+        return service.monthlySummary(users.byEmail(auth.getName()), year);
+    }
+
+    @GetMapping(value = "/export", produces = "text/csv")
+    ResponseEntity<byte[]> export(
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            Authentication auth) {
+        byte[] csv = service.exportCsv(users.byEmail(auth.getName()), category, from, to);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=transactions.csv")
+                .header("Content-Type", "text/csv; charset=UTF-8")
+                .body(csv);
     }
 
     @GetMapping("/{id}")

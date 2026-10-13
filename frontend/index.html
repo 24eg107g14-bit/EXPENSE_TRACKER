@@ -1,13 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Pocketbook</title>
-  <link rel="stylesheet" href="css/style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pocketbook — Expense Tracker</title>
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <div id="app"></div>
+
+  <!-- Toast container -->
+  <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- App shell -->
+  <div id="app" class="app-shell hidden">
+
+    <!-- Sidebar / nav -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <span class="brand-icon">💰</span>
+        <span class="brand-name">Pocketbook</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#/" class="nav-link" data-route="/">
+          <span class="nav-icon">📊</span><span>Dashboard</span>
+        </a>
+        <a href="#/transactions" class="nav-link" data-route="/transactions">
+          <span class="nav-icon">↔️</span><span>Transactions</span>
+        </a>
+        <a href="#/budgets" class="nav-link" data-route="/budgets">
+          <span class="nav-icon">🎯</span><span>Budgets</span>
+        </a>
+        <a href="#/goals" class="nav-link" data-route="/goals">
+          <span class="nav-icon">🏆</span><span>Goals</span>
+        </a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="user-info">
+          <span class="user-avatar" id="nav-avatar">?</span>
+          <div>
+            <div class="user-name" id="nav-name">—</div>
+            <div class="user-email" id="nav-email">—</div>
+          </div>
+        </div>
+        <button class="btn-logout" id="btn-logout" title="Sign out">⏻</button>
+      </div>
+    </aside>
+
+    <!-- Hamburger (mobile) -->
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu">☰</button>
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- Main content area -->
+    <main class="main-content">
+      <div id="view" class="view"></div>
+    </main>
+  </div>
+
+  <!-- Auth pages shell (login / register) -->
+  <div id="auth-shell" class="auth-shell hidden">
+    <div id="auth-view"></div>
+  </div>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
