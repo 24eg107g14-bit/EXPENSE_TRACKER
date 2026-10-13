@@ -18,8 +18,14 @@
   <description>REST API for the Pocketbook expense-tracker application</description>
 
   <properties>
-    <!-- Use the Java version that is actually installed -->
-    <java.version>26</java.version>
+    <!--
+      Target Java 21 (LTS) bytecode. Spring Boot 3.3.5 bundles ASM 9.6,
+      which supports up to Java 23 class files (major version 67).
+      Java 26 class files (major version 70) cause an ASM parse error.
+      Your JDK 26 runtime can run Java-21-targeted jars without any issues.
+      Upgrade to Spring Boot 3.5+ when you want to target Java 25/26 bytecode.
+    -->
+    <java.version>21</java.version>
   </properties>
 
   <dependencies>
