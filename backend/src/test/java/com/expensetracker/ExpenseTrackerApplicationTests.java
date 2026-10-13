@@ -30,7 +30,9 @@ import org.springframework.test.context.TestPropertySource;
     "spring.jpa.database-platform=org.hibernate.dialect.H2Dialect",
     "spring.jpa.hibernate.ddl-auto=create-drop",
     "app.jwt.secret=test-only-secret-at-least-32-chars-here!",
-    "app.cors.allowed-origins=*"
+    "app.cors.allowed-origins=*",
+    "springdoc.swagger-ui.enabled=false",
+    "springdoc.api-docs.enabled=false"
 })
 class ExpenseTrackerApplicationTests {
 

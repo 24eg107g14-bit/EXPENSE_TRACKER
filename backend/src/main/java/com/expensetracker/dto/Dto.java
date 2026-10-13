@@ -1,6 +1,7 @@
 package com.expensetracker.dto;
 
 import com.expensetracker.model.*;
+import com.expensetracker.model.SavingsGoal;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -34,6 +35,30 @@ public final class Dto {
             return new TransactionResponse(t.getId(), t.getType(), t.getAmount(), t.getCategory(), t.getDate(), t.getDescription());
         }
     }
+
+    // Paginated response for GET /api/transactions
+    public record TransactionPage(
+            List<TransactionResponse> content,
+            int page, int size, long totalElements, int totalPages) {}
+
+    // Monthly income/expense summary row
+    public record MonthlySummary(int year, int month, BigDecimal income, BigDecimal expenses) {}
+
+    // Savings goals
+    public record SavingsGoalRequest(
+            @NotBlank(message = "Enter a goal name") @Size(max = 100) String name,
+            @NotNull(message = "Enter a target amount") @Positive(message = "Target must be greater than zero")
+            @Digits(integer = 10, fraction = 2, message = "Use at most 2 decimal places") BigDecimal targetAmount,
+            LocalDate targetDate,
+            @Size(max = 500) String notes) {}
+
+    public record SavingsGoalResponse(
+            Long id, String name, BigDecimal targetAmount, BigDecimal savedAmount,
+            LocalDate targetDate, String notes, int percent, boolean achieved) {}
+
+    public record DepositRequest(
+            @NotNull(message = "Enter an amount") @Positive(message = "Amount must be greater than zero")
+            @Digits(integer = 10, fraction = 2, message = "Use at most 2 decimal places") BigDecimal amount) {}
 
     public record BudgetRequest(
             @NotBlank(message = "Choose a category") @Size(max = 50) String category,
