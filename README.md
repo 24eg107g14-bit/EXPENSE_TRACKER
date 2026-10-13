@@ -1,6 +1,6 @@
 # Pocketbook — Expense Tracker
 
-> A full-stack personal-finance web application. Track income and expenses, set category budgets, and visualise your spending — all scoped securely to your own account.
+> A full-stack personal-finance web application. Track income and expenses, set category budgets, save toward financial goals, and visualise your spending — all scoped securely to your own account.
 
 ---
 
@@ -10,20 +10,11 @@
 2. [Complete Project Structure](#2-complete-project-structure)
 3. [Technology Stack](#3-technology-stack)
 4. [Features](#4-features)
-   - [Authentication & Security](#41-authentication--security)
-   - [Dashboard](#42-dashboard)
-   - [Transactions](#43-transactions)
-   - [Budgets](#44-budgets)
-   - [Categories](#45-categories)
-   - [Frontend SPA](#46-frontend-spa)
 5. [Database Schema](#5-database-schema)
 6. [API Reference](#6-api-reference)
 7. [Environment Variables](#7-environment-variables)
 8. [Prerequisites](#8-prerequisites)
 9. [Setup & Running](#9-setup--running)
-   - [1 — Database](#step-1--database)
-   - [2 — Backend](#step-2--backend)
-   - [3 — Frontend](#step-3--frontend)
 10. [Running Tests](#10-running-tests)
 11. [Configuration Reference](#11-configuration-reference)
 12. [Git Workflow](#12-git-workflow)
@@ -33,83 +24,96 @@
 
 ## 1. Project Overview
 
-Pocketbook is a multi-user expense-tracking application with a **Spring Boot REST API** backend and a **vanilla JavaScript SPA** frontend. Every piece of data (transactions, budgets, dashboard figures) is always scoped to the authenticated user — you can only ever see and modify your own records.
+Pocketbook is a multi-user expense-tracking application with a **Spring Boot 3.3.5 REST API** backend and a **vanilla JavaScript SPA** frontend. Every piece of data is always scoped to the authenticated user — you can only ever see and modify your own records.
+
+**Key highlights:**
+- JWT-based stateless authentication (HS256, BCrypt passwords)
+- Full transaction CRUD with category/date/type filtering, pagination, and CSV export
+- Interactive dashboard: Chart.js bar chart (monthly trends) + doughnut (category breakdown)
+- Budget management with live spent/remaining progress bars
+- Savings goals with deposit tracking and achievement detection
+- Swagger UI at `http://localhost:8080/swagger-ui.html`
+- Fully responsive dark-themed UI (desktop, tablet, mobile)
 
 ---
 
 ## 2. Complete Project Structure
 
 ```
-pocketbook/                                  ← git root
+pocketbook/                                  ← git root  (5 commits, master branch)
 │
-├── .env.example                             ← copy → .env, fill credentials
+├── .env.example                             ← copy → .env and fill credentials
 ├── .gitignore
 ├── README.md
 │
-├── backend/                                 ← Spring Boot Maven project
-│   ├── pom.xml
+├── backend/                                 ← Spring Boot 3.3.5 Maven project
+│   ├── pom.xml                              ← Spring Boot parent, Java 21 target, springdoc, commons-csv
 │   └── src/
 │       ├── main/
 │       │   ├── java/com/expensetracker/
-│       │   │   │
-│       │   │   ├── ExpenseTrackerApplication.java   ← @SpringBootApplication entry point
+│       │   │   ├── ExpenseTrackerApplication.java       ← @SpringBootApplication entry point
 │       │   │   │
 │       │   │   ├── config/
-│       │   │   │   └── SecurityConfig.java          ← JWT, BCrypt, CORS, stateless sessions
+│       │   │   │   └── SecurityConfig.java              ← JWT/OAuth2 Resource Server, BCrypt, CORS, stateless
 │       │   │   │
 │       │   │   ├── controller/
-│       │   │   │   ├── ApiExceptionHandler.java     ← global error → JSON {message, errors}
-│       │   │   │   ├── AuthController.java          ← POST /api/auth/register, /login
-│       │   │   │   ├── BudgetController.java        ← GET/POST/DELETE /api/budgets
-│       │   │   │   ├── DashboardController.java     ← GET /api/dashboard, /api/categories
-│       │   │   │   └── TransactionController.java   ← CRUD /api/transactions
+│       │   │   │   ├── ApiExceptionHandler.java         ← global error → JSON {message, errors}
+│       │   │   │   ├── AuthController.java              ← POST /api/auth/register, /login
+│       │   │   │   ├── BudgetController.java            ← GET/POST/DELETE /api/budgets
+│       │   │   │   ├── DashboardController.java         ← GET /api/dashboard, /api/categories
+│       │   │   │   ├── SavingsGoalController.java       ← GET/POST/DELETE /api/goals, POST /api/goals/{id}/deposit
+│       │   │   │   └── TransactionController.java       ← CRUD + filter + summary + CSV export
 │       │   │   │
 │       │   │   ├── dto/
-│       │   │   │   └── Dto.java                     ← all request/response records
-│       │   │   │       ├── RegisterRequest          name, email, password (validated)
-│       │   │   │       ├── LoginRequest             email, password
-│       │   │   │       ├── AuthResponse             token, name, email
-│       │   │   │       ├── TransactionRequest       type, amount, category, date, description
-│       │   │   │       ├── TransactionResponse      id + all fields
-│       │   │   │       ├── BudgetRequest            category, limitAmount, startDate, endDate
-│       │   │   │       ├── BudgetResponse           id + fields + spent/remaining/percent/exceeded
-│       │   │   │       ├── CategorySpend            category, total, percent
-│       │   │   │       └── DashboardResponse        income, expenses, balance, spending[], recent[]
+│       │   │   │   └── Dto.java                         ← all records:
+│       │   │   │       ├── RegisterRequest / LoginRequest / AuthResponse
+│       │   │   │       ├── TransactionRequest / TransactionResponse / TransactionPage
+│       │   │   │       ├── MonthlySummary
+│       │   │   │       ├── BudgetRequest / BudgetResponse
+│       │   │   │       ├── CategorySpend / DashboardResponse
+│       │   │   │       ├── SavingsGoalRequest / SavingsGoalResponse
+│       │   │   │       └── DepositRequest
 │       │   │   │
 │       │   │   ├── model/
-│       │   │   │   ├── Budget.java                  ← @Entity  table: budgets
-│       │   │   │   ├── Categories.java              ← static list of 12 category names
-│       │   │   │   ├── Transaction.java             ← @Entity  table: transactions (indexed)
-│       │   │   │   ├── TransactionType.java         ← enum: INCOME | EXPENSE
-│       │   │   │   └── User.java                    ← @Entity  table: users
+│       │   │   │   ├── Budget.java          ← @Entity  table: budgets
+│       │   │   │   ├── Categories.java      ← static list of 12 category names
+│       │   │   │   ├── SavingsGoal.java     ← @Entity  table: savings_goals  ← NEW
+│       │   │   │   ├── Transaction.java     ← @Entity  table: transactions (indexed)
+│       │   │   │   ├── TransactionType.java ← enum: INCOME | EXPENSE
+│       │   │   │   └── User.java            ← @Entity  table: users
 │       │   │   │
 │       │   │   ├── repository/
-│       │   │   │   ├── BudgetRepository.java        ← JpaRepository + ownership queries
-│       │   │   │   ├── CategoryTotal.java           ← projection: category + total
-│       │   │   │   ├── TransactionRepository.java   ← JPQL aggregation + period totals
-│       │   │   │   └── UserRepository.java          ← findByEmail, existsByEmail
+│       │   │   │   ├── BudgetRepository.java          ← ownership queries
+│       │   │   │   ├── CategoryTotal.java             ← projection: category + total
+│       │   │   │   ├── MonthlyTotal.java              ← projection: year, month, type, total  ← NEW
+│       │   │   │   ├── SavingsGoalRepository.java     ← ownership queries  ← NEW
+│       │   │   │   ├── TransactionRepository.java     ← JPQL aggregation, filtering, monthlySummary, CSV export
+│       │   │   │   └── UserRepository.java            ← findByEmail, existsByEmail
 │       │   │   │
 │       │   │   └── service/
-│       │   │       ├── BudgetService.java           ← save, delete, status calculation
-│       │   │       ├── TokenService.java            ← HS256 JWT issue (NimbusJWT)
-│       │   │       ├── TransactionService.java      ← CRUD + dashboard aggregation
-│       │   │       └── UserService.java             ← register (BCrypt), authenticate
+│       │   │       ├── BudgetService.java         ← save, delete, status calculation
+│       │   │       ├── SavingsGoalService.java    ← list, save, deposit, delete, % calculation  ← NEW
+│       │   │       ├── TokenService.java          ← HS256 JWT issue
+│       │   │       ├── TransactionService.java    ← CRUD + dashboard + listFiltered + monthlySummary + exportCsv
+│       │   │       └── UserService.java           ← register (BCrypt), authenticate
 │       │   │
 │       │   └── resources/
-│       │       └── application.properties           ← all config via env vars
+│       │       └── application.properties         ← all config via env vars; springdoc paths
 │       │
 │       └── test/
 │           └── java/com/expensetracker/
-│               └── ExpenseTrackerApplicationTests.java  ← context-loads smoke test (H2)
+│               ├── ExpenseTrackerApplicationTests.java    ← context-loads smoke test (H2)
+│               └── service/
+│                   └── TransactionServiceTest.java        ← 4 Mockito unit tests  ← NEW
 │
 └── frontend/                                ← static SPA, no build step
-    ├── index.html                           ← single HTML shell
+    ├── index.html                           ← app shell + auth shell + Chart.js CDN + toast container
     ├── css/
-    │   └── style.css                        ← full responsive stylesheet
+    │   └── style.css                        ← complete redesign — dark theme, grid layout, responsive
     └── js/
-        ├── config.js                        ← API_URL + CURRENCY (edit this)
-        ├── api.js                           ← fetch wrapper, session, ApiError
-        └── app.js                           ← router + all page views (210 lines)
+        ├── config.js                        ← API_URL + CURRENCY (edit this to point at backend)
+        ├── api.js                           ← fetch wrapper, session, all API methods
+        └── app.js                           ← hash router + all page views + Chart.js charts
 ```
 
 ---
@@ -123,151 +127,127 @@ pocketbook/                                  ← git root
 | Language | Java 21 (bytecode target; runs on JDK 26) |
 | Framework | Spring Boot 3.3.5 |
 | Web | Spring MVC (`@RestController`) |
-| Security | Spring Security 6 — stateless, BCrypt passwords, HS256 JWT |
+| Security | Spring Security 6 — stateless, BCrypt, HS256 JWT |
 | JWT | Nimbus JOSE / Spring OAuth2 Resource Server |
 | Persistence | Spring Data JPA + Hibernate 6.5 |
-| Database | MySQL 8.0 (auto-creates schema on first run) |
-| Validation | Jakarta Bean Validation (`@NotBlank`, `@Positive`, `@Digits`, `@Email`, `@Size`) |
+| Database | MySQL 8.0 (schema auto-created on first run) |
+| Validation | Jakarta Bean Validation |
+| API Docs | Springdoc OpenAPI 2.6.0 (Swagger UI) |
+| CSV Export | Apache Commons CSV 1.11.0 |
 | Build | Apache Maven 3.10 |
-| Test | JUnit 5, Spring Boot Test, Spring Security Test, H2 (in-memory, test scope) |
+| Test | JUnit 5, Spring Boot Test, Mockito, H2 (test scope) |
 
 ### Frontend
 
 | Layer | Technology |
 |---|---|
-| Language | Vanilla JavaScript (ES2020, no transpiler) |
+| Language | Vanilla JavaScript (ES2020) |
 | Markup | HTML5 |
-| Styling | CSS3 with CSS custom properties (variables), CSS Grid, `clamp()`, media queries |
-| Routing | Hash-based client-side router (`hashchange` event) |
-| HTTP | `fetch` API with `Authorization: Bearer` header |
+| Styling | CSS3 — custom properties, CSS Grid, clamp(), media queries |
+| Charts | Chart.js 4.4.4 (CDN) — bar (monthly) + doughnut (category) |
+| Routing | Hash-based client-side router |
+| HTTP | `fetch` API with `Authorization: Bearer` |
 | State | `localStorage` session (token + name + email) |
-| Build step | **None** — open directly in a browser |
+| Build step | **None** — open directly in a browser or any static server |
 
 ---
 
 ## 4. Features
 
-### 4.1 Authentication & Security
+### Authentication & Security
+- **Register / Login** with name, email, password (8–72 chars, BCrypt hashed)
+- **HS256 JWT** tokens, 12-hour expiry, `JWT_SECRET` env var (never hardcoded)
+- **Stateless sessions** — no server-side session state
+- **Per-user data isolation** — every query filters by the authenticated user; accessing another user's resource returns `404`
+- **Auto-logout** on `401` — frontend clears session and redirects to login
+- **CORS** configured via `CORS_ORIGINS` env var
+- **Global error handler** — all errors return `{ message, errors }` JSON
 
-- **Register** — create an account with name, email, and password (8–72 characters).
-- **Login** — authenticate with email + password; receive a signed JWT.
-- **Passwords** are hashed with BCrypt before storage. Plain-text passwords are never stored.
-- **JWT tokens** are signed with HMAC-SHA256. The secret is never hard-coded; it is read from the `JWT_SECRET` environment variable (minimum 32 characters). Tokens expire after 12 hours (configurable).
-- **Stateless sessions** — no server-side session state; every request carries a `Bearer` token.
-- **Per-user data isolation** — every query filters by the authenticated user. Accessing another user's resource returns `404 Not Found`, not a forbidden error (ownership leak prevention).
-- **Duplicate email check** — attempting to register a second account with the same email returns `409 Conflict`.
-- **Email is case-insensitive** — stored and looked up in lowercase.
-- **CORS** is configured via `CORS_ORIGINS` environment variable (`*` by default for local dev).
-- **Global error handler** (`ApiExceptionHandler`) — all validation errors and `ResponseStatusException`s are returned as consistent JSON:
-  ```json
-  { "message": "Please fix the highlighted fields", "errors": { "email": "Enter a valid email address" } }
-  ```
+### Dashboard
+- **Balance card** = total income − total expenses (highlighted red if negative)
+- **Income / Expenses** stat cards
+- **Monthly trends bar chart** — Chart.js grouped bar for all 12 months of the selected year; ◀ ▶ navigation
+- **Category spending bars** — horizontal bars, widths proportional to top spender
+- **Category doughnut chart** — Chart.js doughnut with legend
+- **Recent 5 transactions** — with type icon, category, date, and signed amount
 
-### 4.2 Dashboard
+### Transactions
+- **Full CRUD** — list, add, edit, delete with ownership enforcement
+- **Filter bar** — filter by category, type (INCOME/EXPENSE), from-date, to-date
+- **Pagination** — page navigation with total count
+- **CSV export** — `⬇ CSV` button downloads `transactions.csv` with active filters applied
+- **Sorted** newest-first (date DESC, id DESC) at all times
+- **Validation** — amount (positive, ≤2 decimal places), category (required), date (required), description (optional, max 255)
+- **Delete confirmation** — `confirm()` before destructive action
 
-The dashboard fetches two endpoints in parallel and combines the data into one view:
+### Budgets
+- **Create** — category + limit amount + start date + end date
+- **Live status** — spent (calculated from matching expenses), remaining, % bar, exceeded flag
+- **Progress bars** — green → yellow (≥75%) → red (exceeded)
+- **Default dates** — form pre-fills to first/last day of current month
+- **Delete** with ownership check
 
-- **Available balance** = total income − total expenses (highlighted in red if negative).
-- **Income vs. Spent** — side-by-side totals for the user's entire history.
-- **Spending by category** — horizontal bar chart showing each expense category's total, with widths proportional to the highest-spending category (percentage calculated server-side with `RoundingMode.HALF_UP`).
-- **Budget overview** — all budgets shown with their spent / limit bars.
-- **Recent transactions** — last 5 transactions (by date then by ID, descending).
+### Savings Goals ← NEW
+- **Create** a named goal with target amount, optional target date, optional notes
+- **Deposit** — add an amount to `savedAmount` via `+ Add savings` modal
+- **Progress bar** — turns green on 100% achievement; `✅ Achieved` badge appears
+- **Delete** with ownership check
 
-### 4.3 Transactions
+### Frontend UX
+- **Toast notifications** — success/error/info slide in from bottom-right; auto-dismiss after 3.8 s
+- **Loading spinners** — shown while any API call is in progress
+- **Button loading state** — spinner on submit button while request is in-flight; re-enables on error
+- **Empty states** — friendly icons + messages for all zero-data scenarios
+- **XSS protection** — all user content passes through `esc()` before rendering
+- **Responsive** — sidebar collapses to hamburger on ≤ 760 px; stat grid stacks on ≤ 480 px
+- **Reduced-motion** — progress bar transitions and animations disabled for `prefers-reduced-motion`
 
-Full CRUD for income and expense records:
-
-- **List** — all transactions for the logged-in user, ordered newest first (by date DESC, then ID DESC).
-- **Add** — create a new INCOME or EXPENSE record with amount, category, date, and optional description.
-- **Edit** — update any field of an existing transaction; ownership is enforced server-side.
-- **Delete** — remove a transaction with a confirmation prompt; ownership is enforced.
-
-**Validation rules (enforced on backend + visible in UI):**
-
-| Field | Rules |
-|---|---|
-| Type | Required; must be `INCOME` or `EXPENSE` |
-| Amount | Required; positive; max 2 decimal places; max 10 integer digits |
-| Category | Required; max 50 characters |
-| Date | Required; ISO date format `YYYY-MM-DD` |
-| Description | Optional; max 255 characters; blank is stored as `null` |
-
-**DB detail:** the `transactions` table has a compound index `(user_id, txn_date)` for efficient per-user chronological queries.
-
-### 4.4 Budgets
-
-- **Create a budget** — set a spending limit for a category over a custom date range (start date → end date).
-- **Date validation** — end date must be on or after start date (checked in the controller before saving).
-- **Live status** — each budget response includes:
-  - `spent` — actual expenses matching the category and date range (calculated with a JPQL aggregate query).
-  - `remaining` — `limitAmount − spent` (can be negative if over budget).
-  - `percent` — `(spent / limitAmount) × 100`, capped at `100` in the response so the progress bar never overflows.
-  - `exceeded` — `true` when `spent > limitAmount`; the UI turns the bar red.
-- **Delete a budget** — removes it; ownership enforced.
-- **Dashboard integration** — budgets are shown as progress bars on the dashboard.
-
-### 4.5 Categories
-
-A fixed list of 12 categories is served from the backend (`GET /api/categories`) and used to populate all dropdowns in the UI:
-
-`Salary`, `Freelance`, `Food`, `Rent`, `Transport`, `Utilities`, `Shopping`, `Health`, `Entertainment`, `Education`, `Savings`, `Other`
-
-### 4.6 Frontend SPA
-
-- **Hash-based router** — no page reloads. Routes: `#/`, `#/login`, `#/register`, `#/transactions`, `#/transactions/new`, `#/transactions/:id/edit`, `#/budgets`.
-- **Auth guard** — unauthenticated users are redirected to `#/login`; logged-in users are redirected away from auth pages.
-- **Automatic logout** — a `401` response from any non-auth endpoint clears the session and redirects to `#/login`.
-- **XSS prevention** — all user-supplied values rendered in HTML pass through an `esc()` function that encodes `&`, `<`, `>`, `"`, `'`.
-- **Form UX** — submit button is disabled during the request; field-level error messages appear inline; a banner message shows API-level errors.
-- **Responsive layout** — CSS Grid sidebar collapses to a top bar on screens ≤ 760 px.
-- **Reduced-motion support** — progress bar width transition is skipped for users with `prefers-reduced-motion`.
-- **Configurable** — `frontend/js/config.js` exposes `API_URL` and `CURRENCY` so you can point the app at any backend and change the currency symbol without editing application code.
+### API Documentation
+- Swagger UI at `http://localhost:8080/swagger-ui.html` (no auth required to view)
+- OpenAPI JSON at `http://localhost:8080/v3/api-docs`
 
 ---
 
 ## 5. Database Schema
 
-Tables are created and updated automatically by Hibernate (`ddl-auto=update`). No manual SQL migrations are required.
+Tables are created/updated automatically by Hibernate (`ddl-auto=update`). **No manual SQL needed.**
 
 ```
 ┌─────────────────────────────┐
 │           users             │
 ├──────────┬──────────────────┤
-│ id       │ BIGINT PK AI     │
+│ id       │ BIGINT PK AUTO   │
 │ name     │ VARCHAR(80)      │
 │ email    │ VARCHAR UNIQUE   │
 │ password │ VARCHAR (BCrypt) │
 │ created_at│ DATETIME        │
 └──────────┴──────────────────┘
         │ 1
-        │
-        │ *
-┌─────────────────────────────────────────┐
-│              transactions               │
-│  INDEX: idx_tx_user_date (user_id, txn_date) │
-├──────────────┬──────────────────────────┤
-│ id           │ BIGINT PK AI             │
-│ user_id      │ BIGINT FK → users.id     │
-│ type         │ VARCHAR(10) INCOME|EXPENSE│
-│ amount       │ DECIMAL(12,2)            │
-│ category     │ VARCHAR(50)              │
-│ txn_date     │ DATE                     │
-│ description  │ VARCHAR(255) nullable    │
-└──────────────┴──────────────────────────┘
-
-        │ 1
-        │
-        │ *
-┌──────────────────────────────┐
-│           budgets            │
-├─────────────┬────────────────┤
-│ id          │ BIGINT PK AI   │
-│ user_id     │ BIGINT FK → users.id │
-│ category    │ VARCHAR(50)    │
-│ limit_amount│ DECIMAL(12,2)  │
-│ start_date  │ DATE           │
-│ end_date    │ DATE           │
-└─────────────┴────────────────┘
+        ├────────────────────────────────────────┐
+        │                                        │
+        │ *                                      │ *
+┌───────────────────────────────────────┐  ┌──────────────────────────────┐
+│              transactions             │  │           budgets            │
+│  INDEX: idx_tx_user_date(user,date)   │  ├─────────────┬───────────────┤
+├──────────────┬────────────────────────┤  │ id          │ BIGINT PK     │
+│ id           │ BIGINT PK AUTO         │  │ user_id     │ FK → users    │
+│ user_id      │ FK → users             │  │ category    │ VARCHAR(50)   │
+│ type         │ VARCHAR(10)            │  │ limit_amount│ DECIMAL(12,2) │
+│ amount       │ DECIMAL(12,2)          │  │ start_date  │ DATE          │
+│ category     │ VARCHAR(50)            │  │ end_date    │ DATE          │
+│ txn_date     │ DATE                   │  └─────────────┴───────────────┘
+│ description  │ VARCHAR(255) nullable  │
+└──────────────┴────────────────────────┘  ┌──────────────────────────────────┐
+                                           │          savings_goals   ← NEW   │
+                                           ├─────────────┬────────────────────┤
+                                           │ id          │ BIGINT PK AUTO     │
+                                           │ user_id     │ FK → users         │
+                                           │ name        │ VARCHAR(100)       │
+                                           │ target_amount│ DECIMAL(12,2)     │
+                                           │ saved_amount │ DECIMAL(12,2)     │
+                                           │ target_date  │ DATE nullable     │
+                                           │ notes        │ VARCHAR(500) null │
+                                           └─────────────┴────────────────────┘
 ```
 
 ---
@@ -275,110 +255,91 @@ Tables are created and updated automatically by Hibernate (`ddl-auto=update`). N
 ## 6. API Reference
 
 > Base URL: `http://localhost:8080`
-> All endpoints except `/api/auth/**` require the header:
+> All endpoints except `/api/auth/**`, `/swagger-ui/**`, `/v3/api-docs/**` require:
 > `Authorization: Bearer <token>`
 
 ### Authentication
 
-| Method | Endpoint | Body | Response | Notes |
-|--------|----------|------|----------|-------|
-| `POST` | `/api/auth/register` | `{name, email, password}` | `201` `{token, name, email}` | Password min 8 chars |
-| `POST` | `/api/auth/login` | `{email, password}` | `200` `{token, name, email}` | Returns fresh JWT |
+| Method | Endpoint | Body | Response |
+|--------|----------|------|----------|
+| `POST` | `/api/auth/register` | `{name, email, password}` | `201 {token, name, email}` |
+| `POST` | `/api/auth/login` | `{email, password}` | `200 {token, name, email}` |
 
 ### Dashboard
 
 | Method | Endpoint | Response |
 |--------|----------|----------|
-| `GET` | `/api/dashboard` | `{income, expenses, balance, spending:[{category,total,percent}], recent:[TransactionResponse]}` |
-| `GET` | `/api/categories` | `["Salary","Freelance","Food",...]` (12 items) |
+| `GET` | `/api/dashboard` | `{income, expenses, balance, spending:[…], recent:[…]}` |
+| `GET` | `/api/categories` | `["Salary","Food",…]` (12 items) |
 
 ### Transactions
 
-| Method | Endpoint | Body | Response | Notes |
-|--------|----------|------|----------|-------|
-| `GET` | `/api/transactions` | — | `[TransactionResponse]` | Newest first |
-| `POST` | `/api/transactions` | `TransactionRequest` | `201 TransactionResponse` | Validated |
-| `GET` | `/api/transactions/{id}` | — | `TransactionResponse` | `404` if not yours |
-| `PUT` | `/api/transactions/{id}` | `TransactionRequest` | `200 TransactionResponse` | `404` if not yours |
-| `DELETE` | `/api/transactions/{id}` | — | `204 No Content` | `404` if not yours |
+| Method | Endpoint | Query params | Response |
+|--------|----------|-------------|----------|
+| `GET` | `/api/transactions` | `category`, `type`, `from`, `to`, `page`, `size` | Array or `TransactionPage` |
+| `GET` | `/api/transactions/summary` | `year` (default: current year) | `[{year,month,income,expenses}]` |
+| `GET` | `/api/transactions/export` | `category`, `from`, `to` | `text/csv` download |
+| `POST` | `/api/transactions` | — | `201 TransactionResponse` |
+| `GET` | `/api/transactions/{id}` | — | `TransactionResponse` |
+| `PUT` | `/api/transactions/{id}` | — | `200 TransactionResponse` |
+| `DELETE` | `/api/transactions/{id}` | — | `204` |
 
-**TransactionRequest body:**
+**TransactionRequest:**
 ```json
-{
-  "type": "EXPENSE",
-  "amount": 49.99,
-  "category": "Food",
-  "date": "2026-10-13",
-  "description": "Lunch"
-}
+{ "type": "EXPENSE", "amount": 49.99, "category": "Food", "date": "2026-10-13", "description": "Lunch" }
+```
+
+**TransactionPage response (when filters active):**
+```json
+{ "content": [...], "page": 0, "size": 20, "totalElements": 150, "totalPages": 8 }
 ```
 
 ### Budgets
 
-| Method | Endpoint | Body | Response | Notes |
-|--------|----------|------|----------|-------|
-| `GET` | `/api/budgets` | — | `[BudgetResponse]` | Includes live spent/remaining |
-| `POST` | `/api/budgets` | `BudgetRequest` | `201 BudgetResponse` | endDate ≥ startDate |
-| `DELETE` | `/api/budgets/{id}` | — | `204 No Content` | `404` if not yours |
+| Method | Endpoint | Response |
+|--------|----------|----------|
+| `GET` | `/api/budgets` | `[BudgetResponse]` — includes live spent/remaining/percent/exceeded |
+| `POST` | `/api/budgets` | `201 BudgetResponse` |
+| `DELETE` | `/api/budgets/{id}` | `204` |
 
-**BudgetRequest body:**
-```json
-{
-  "category": "Food",
-  "limitAmount": 300.00,
-  "startDate": "2026-10-01",
-  "endDate": "2026-10-31"
-}
-```
+### Savings Goals
 
-**BudgetResponse includes:**
-```json
-{
-  "id": 1,
-  "category": "Food",
-  "limitAmount": 300.00,
-  "startDate": "2026-10-01",
-  "endDate": "2026-10-31",
-  "spent": 120.50,
-  "remaining": 179.50,
-  "percent": 40,
-  "exceeded": false
-}
-```
+| Method | Endpoint | Body | Response |
+|--------|----------|------|----------|
+| `GET` | `/api/goals` | — | `[SavingsGoalResponse]` |
+| `POST` | `/api/goals` | `{name, targetAmount, targetDate?, notes?}` | `201 SavingsGoalResponse` |
+| `POST` | `/api/goals/{id}/deposit` | `{amount}` | `200 SavingsGoalResponse` |
+| `DELETE` | `/api/goals/{id}` | — | `204` |
+
+**SavingsGoalResponse includes:** `id, name, targetAmount, savedAmount, targetDate, notes, percent (0–100), achieved`
 
 ### Error Responses
 
-All errors are JSON with a consistent shape:
-
 ```json
 { "message": "Human-readable description" }
-```
-```json
 { "message": "Please fix the highlighted fields", "errors": { "amount": "Amount must be greater than zero" } }
 ```
 
-| HTTP Status | When |
-|-------------|------|
-| `400 Bad Request` | Validation failure |
-| `401 Unauthorized` | Missing / expired / invalid JWT |
-| `404 Not Found` | Resource doesn't exist for this user |
-| `409 Conflict` | Email already registered |
+| Status | When |
+|--------|------|
+| `400` | Validation failure |
+| `401` | Missing / expired JWT |
+| `404` | Resource not found for this user |
+| `409` | Email already registered |
 
 ---
 
 ## 7. Environment Variables
 
-Copy `.env.example` to `.env` and fill in your values. Then set them in your PowerShell session before running Maven.
+Copy `.env.example` to `.env` and fill in values. Set them in PowerShell before running Maven.
 
-| Variable | Default (dev fallback) | Required in production | Description |
-|----------|----------------------|----------------------|-------------|
-| `DB_URL` | `jdbc:mysql://localhost:3306/expense_tracker?createDatabaseIfNotExist=true&serverTimezone=UTC` | Recommended | Full JDBC connection URL |
+| Variable | Dev fallback | Required in prod | Description |
+|----------|-------------|------------------|-------------|
+| `DB_URL` | `jdbc:mysql://localhost:3306/expense_tracker?createDatabaseIfNotExist=true&serverTimezone=UTC` | Recommended | Full JDBC URL |
 | `DB_USER` | `root` | Yes | MySQL username |
-| `DB_PASSWORD` | *(empty string)* | **Yes** | MySQL password |
-| `JWT_SECRET` | `dev-only-secret-change-me-please-32chars-min!` | **Yes** | HS256 signing key, minimum 32 characters |
-| `CORS_ORIGINS` | `*` | Yes | Comma-separated browser origins, e.g. `http://localhost:5500` |
-
-> **Security note:** The dev fallback for `JWT_SECRET` is intentionally weak and public. Always set a strong, random secret in any non-local environment.
+| `DB_PASSWORD` | *(empty)* | **Yes** | MySQL password |
+| `JWT_SECRET` | `dev-only-secret-change-me-please-32chars-min!` | **Yes** | HS256 signing key, min 32 chars |
+| `CORS_ORIGINS` | `*` | Yes | Comma-separated browser origins |
 
 **Generate a secure secret:**
 ```powershell
@@ -389,13 +350,13 @@ Copy `.env.example` to `.env` and fill in your values. Then set them in your Pow
 
 ## 8. Prerequisites
 
-| Tool | Version | How to check |
-|------|---------|-------------|
-| JDK | 26 (runs Java-21-targeted bytecode) | `java -version` |
-| Apache Maven | 3.10+ | `mvn --version` |
-| MySQL Server | 8.0+ | `mysql --version` |
+| Tool | Version | Check |
+|------|---------|-------|
+| JDK | 26.0.1 (runs Java-21 bytecode) | `java -version` |
+| Maven | 3.10+ | `mvn --version` |
+| MySQL | 8.0+ | `mysql --version` |
 | Git | Any | `git --version` |
-| Python *(optional)* | 3.x | For the `http.server` frontend dev server |
+| Python *(optional)* | 3.x | Frontend static server |
 
 ---
 
@@ -403,11 +364,11 @@ Copy `.env.example` to `.env` and fill in your values. Then set them in your Pow
 
 ### Step 1 — Database
 
-Start MySQL and ensure the user has `CREATE` privilege on the `expense_tracker` database. The database and all tables are created automatically on first backend startup.
+Start MySQL. The `expense_tracker` database and all 4 tables are created automatically on first backend startup.
 
 ```sql
--- Optional: create a dedicated user instead of using root
-CREATE USER 'pocketbook'@'localhost' IDENTIFIED BY 'your_strong_password';
+-- Optional: dedicated user instead of root
+CREATE USER 'pocketbook'@'localhost' IDENTIFIED BY 'your_password';
 GRANT ALL PRIVILEGES ON expense_tracker.* TO 'pocketbook'@'localhost';
 FLUSH PRIVILEGES;
 ```
@@ -415,44 +376,37 @@ FLUSH PRIVILEGES;
 ### Step 2 — Backend
 
 ```powershell
-# From the project root, enter the backend folder:
 Set-Location backend
 
-# Set environment variables in your current PowerShell session:
 $env:DB_USER      = "root"
 $env:DB_PASSWORD  = "your_mysql_password"
 $env:JWT_SECRET   = "your-random-secret-at-least-32-chars-long"
 $env:CORS_ORIGINS = "http://localhost:5500"
 
-# Start the API server (listens on http://localhost:8080):
 mvn spring-boot:run
 ```
 
-You should see `Started ExpenseTrackerApplication` in the console.
-The `expense_tracker` database schema is created on the first run.
+Backend starts at `http://localhost:8080`.
+Swagger UI at `http://localhost:8080/swagger-ui.html`.
 
 ### Step 3 — Frontend
 
-The frontend is a plain static site — no `npm install`, no build step.
+No `npm install`, no build step.
 
-**Option A — Python HTTP server (simplest):**
 ```powershell
 Set-Location frontend
 python -m http.server 5500
 # Open http://localhost:5500 in your browser
 ```
 
-**Option B — VS Code Live Server:**
-Right-click `frontend/index.html` → *Open with Live Server*.
+Or use VS Code **Live Server** → right-click `frontend/index.html` → *Open with Live Server*.
 
-**Option C — Any static server** (nginx, IIS, `npx serve`, etc.)
-
-**Changing the API URL or currency symbol:**
+**Changing the backend URL or currency:**
 Edit [`frontend/js/config.js`](frontend/js/config.js):
 ```js
 window.CONFIG = {
-  API_URL: 'http://localhost:8080',  // ← backend origin
-  CURRENCY: '$'                       // ← symbol shown next to amounts
+  API_URL: 'http://localhost:8080',
+  CURRENCY: '₹'    // or '$', '€', etc.
 };
 ```
 
@@ -465,39 +419,37 @@ Set-Location backend
 mvn test
 ```
 
-The context-loads smoke test verifies that the entire Spring application context (security, JPA, JWT, CORS, all beans) wires up correctly. It uses **H2 in-memory database**, so **MySQL is not required** to run tests.
+**Test suite (5 tests, 0 failures):**
 
-Expected output:
-```
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
-BUILD SUCCESS
-```
+| Test class | Tests | What it verifies |
+|---|---|---|
+| `ExpenseTrackerApplicationTests` | 1 | Full Spring context loads with H2 (MySQL not required) |
+| `TransactionServiceTest` | 4 | `dashboard()` balance, `nz()` null-safety, `save()` field mapping, `get()` 404 ownership |
 
 ---
 
 ## 11. Configuration Reference
 
-All settings live in [`backend/src/main/resources/application.properties`](backend/src/main/resources/application.properties). Every value reads from an environment variable with a dev fallback.
+[`backend/src/main/resources/application.properties`](backend/src/main/resources/application.properties):
 
 ```properties
 spring.application.name=pocketbook-api
 
-# Datasource — override with DB_URL / DB_USER / DB_PASSWORD
-spring.datasource.url=${DB_URL:jdbc:mysql://localhost:3306/expense_tracker?createDatabaseIfNotExist=true&serverTimezone=UTC}
+spring.datasource.url=${DB_URL:jdbc:mysql://localhost:3306/expense_tracker?...}
 spring.datasource.username=${DB_USER:root}
 spring.datasource.password=${DB_PASSWORD:}
 
-# Hibernate auto-creates / updates tables; set to validate or none in production
-spring.jpa.hibernate.ddl-auto=update
+spring.jpa.hibernate.ddl-auto=update   # set to validate/none in production
 spring.jpa.open-in-view=false
 server.error.include-message=always
 
-# JWT — override with JWT_SECRET (min 32 chars) and optionally JWT_HOURS
-app.jwt.secret=${JWT_SECRET:dev-only-secret-change-me-please-32chars-min!}
-app.jwt.hours=12
+app.jwt.secret=${JWT_SECRET:dev-only-...}
+app.jwt.hours=12                        # token lifetime
 
-# CORS — override with CORS_ORIGINS (comma-separated)
 app.cors.allowed-origins=${CORS_ORIGINS:*}
+
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.api-docs.path=/v3/api-docs
 ```
 
 ---
@@ -505,42 +457,38 @@ app.cors.allowed-origins=${CORS_ORIGINS:*}
 ## 12. Git Workflow
 
 ```powershell
-# See what has changed
 git status
-
-# Stage all changes
 git add .
+git commit -m "your message"
 
-# Commit
-git commit -m "describe your change"
-
-# Connect to GitHub (run once):
+# Connect to GitHub (once):
 git remote add origin https://github.com/<your-username>/pocketbook.git
 git push -u origin master
-
-# Subsequent pushes:
-git push
 ```
 
 **Commit history:**
 ```
-* fix: target Java 21 bytecode (Spring Boot 3.3.5 ASM incompatible with Java 26 class files)
-* Initial commit: full-stack Pocketbook expense tracker
+1871706  merge: feature/improvements into master — complete Phase A-C upgrade
+9b8e127  feat: Phase A-C improvements — charts, filters, pagination, CSV export, savings goals, Swagger UI, unit tests
+7b03a07  docs: complete README with full project structure, all features, API reference, schema, and troubleshooting
+2e52be4  fix: target Java 21 bytecode (Spring Boot 3.3.5 ASM incompatible with Java 26 class files)
+7f664c1  Initial commit: full-stack Pocketbook expense tracker
 ```
 
 ---
 
 ## 13. Troubleshooting
 
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| `Communications link failure` | MySQL is not running | Start the MySQL service (`services.msc`) |
-| `Access denied for user 'root'@'localhost'` | Wrong `DB_USER` or `DB_PASSWORD` | Check your env vars: `echo $env:DB_PASSWORD` |
-| `Cannot reach the server` (browser console) | Backend not started | Run `mvn spring-boot:run` in `backend/` |
-| CORS error in browser DevTools | Frontend origin not in `CORS_ORIGINS` | Set `$env:CORS_ORIGINS = "http://localhost:5500"` and restart |
-| `401 Unauthorized` on every request | JWT secret changed or token expired | Log out, log in again; ensure `JWT_SECRET` is consistent |
-| `Unsupported class file major version` | Compiling to Java 26 bytecode — Spring Boot ASM can't read it | `<java.version>21</java.version>` in `pom.xml` (already set) |
-| `Failed to delete target/` on `mvn clean` | OneDrive locking files | `Remove-Item -Recurse -Force backend\target`; then retry |
-| Port 8080 already in use | Another process | `netstat -ano \| findstr :8080` — kill the listed PID |
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `Communications link failure` | MySQL not running | Start MySQL service (`services.msc`) |
+| `Access denied for user 'root'` | Wrong `DB_PASSWORD` | `echo $env:DB_PASSWORD` to verify |
+| `Cannot reach the server` (browser) | Backend not started | Run `mvn spring-boot:run` in `backend/` |
+| CORS error in DevTools | Frontend origin not in `CORS_ORIGINS` | Set `$env:CORS_ORIGINS = "http://localhost:5500"` and restart backend |
+| `401` on every request | JWT expired or wrong secret | Log out → log in; ensure `JWT_SECRET` hasn't changed |
+| `Unsupported class file major version` | Java 26 bytecode, Spring ASM can't read it | `<java.version>21</java.version>` in pom.xml (already set) |
+| `Failed to delete target/` | OneDrive locking files | `Remove-Item -Recurse -Force backend\target` |
+| Port 8080 in use | Another process | `netstat -ano \| findstr :8080` → kill the PID |
 | `An account with this email already exists` | Duplicate registration | Log in instead, or use a different email |
-| Build downloads nothing / hangs | No internet / proxy | Check your network; Maven resolves dependencies from Maven Central on first build |
+| Swagger UI shows no auth | Swagger needs Bearer token for protected endpoints | Use Authorize button → paste your JWT token |
+| Charts not rendering | Chart.js CDN blocked | Check network; or download Chart.js and serve locally |
