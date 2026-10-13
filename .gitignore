@@ -1,0 +1,28 @@
+# ── Build output ──────────────────────────────────────────────────────────────
+backend/target/
+*.class
+*.jar
+*.war
+
+# ── Dependencies (if a JS build tool is added later) ──────────────────────────
+node_modules/
+frontend/dist/
+
+# ── Environment / secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── IDE / editor ──────────────────────────────────────────────────────────────
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# ── OS artefacts ──────────────────────────────────────────────────────────────
+Thumbs.db
+.DS_Store
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
